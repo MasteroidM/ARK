@@ -11,4 +11,3 @@ enum Status { SUCCESS, FAILURE };
 
 Status CreateWindow();
 void KeepWindowUp();
-
