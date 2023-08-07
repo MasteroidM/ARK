@@ -1,13 +1,25 @@
 #include "ARK.h"
 
-int main(int argc, char* args[])
+int main(int, char**) 
 {
-	Status status = CreateWindow();
+    Window window;
+    std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> sdlWindow = window.CreateWindow(); 
 
-	if (status == SUCCESS)
-		std::cout << "Success" << std::endl;
-	else
-		std::cout << "Failure" << std::endl;
+    SDL_Event event;
+    bool quit = false;
 
-	return 0;
+    while (!quit) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                quit = true;
+            }
+            else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
+                quit = true;
+            }
+        }
+    }
+
+    SDL_Quit();
+
+    return 0;
 }
