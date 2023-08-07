@@ -1,52 +1,29 @@
 #include "CreateWindow.h"
 
-void KeepWindowUp()
-{
-	SDL_Event e;
-	bool quit = false;
-	while (quit == false)
-	{
-		while (SDL_PollEvent(&e))
-		{
-			if (e.type == SDL_QUIT)
-			{
-				quit = true;
-			}
-		}
-	}
+Window::Window() = default;
+
+Window::~Window() {
+	SDL_Quit();
 }
 
-Status CreateWindow()
-{
-	SDL_Window* window = nullptr;
-	SDL_Surface* screenSurface = nullptr;
+std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> Window::CreateWindow() {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        std::cout << "SDL could not initialize! " << "SDL Error : " << SDL_GetError() << std::endl;
+        return std::unique_ptr<SDL_Window, void(*)(SDL_Window*)>(nullptr, SDL_DestroyWindow);
+    }
 
-	if (SDL_Init(SDL_INIT_VIDEO) < 0)
-	{
-		std::cout << "SDL could not initialize! " << "SDL Error : " << SDL_GetError() << std::endl;
-	}
-	else
-	{
-		window = SDL_CreateWindow("SDL Window", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> windowPtr(SDL_CreateWindow("SDL Window", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN), SDL_DestroyWindow);
 
-		if (window == nullptr)
-		{
-			std::cout << "SDL Window could not be created! " << "SDL Error : " << SDL_GetError() << std::endl;
-		}
-		else
-		{
-			screenSurface = SDL_GetWindowSurface(window);
+    if (windowPtr == nullptr) {
+        std::cout << "SDL Window could not be created! " << "SDL Error : " << SDL_GetError() << std::endl;
+        return std::unique_ptr<SDL_Window, void(*)(SDL_Window*)>(nullptr, SDL_DestroyWindow);
+    }
 
-			SDL_FillRect(screenSurface, nullptr, SDL_MapRGB(screenSurface->format, 0x00, 0x00, 0x00));
+    screenSurface = SDL_GetWindowSurface(windowPtr.get());
 
-			SDL_UpdateWindowSurface(window);
+    SDL_FillRect(screenSurface, nullptr, SDL_MapRGB(screenSurface->format, 0x00, 0x00, 0x00));
 
-			KeepWindowUp();
-		}
-	}
+    SDL_UpdateWindowSurface(windowPtr.get());
 
-	SDL_DestroyWindow(window);
-	SDL_Quit();
-
-	return SUCCESS;
+    return windowPtr;
 }
