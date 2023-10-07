@@ -2,8 +2,8 @@
 
 #include <iostream>
 
-#include "SDL.h"
-#include "SDL_image.h"
+#include "lib/include/SDL.h"
+#include "lib/include/SDL_image.h"
 
 constexpr uint16_t SCREEN_HEIGHT = 480;
 constexpr uint16_t SCREEN_WIDTH = 640;
