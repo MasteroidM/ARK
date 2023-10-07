@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "SDL.h"
+#include "SDL_image.h"
 
 const uint16_t SCREEN_HEIGHT = 480;
 const uint16_t SCREEN_WIDTH = 640;
