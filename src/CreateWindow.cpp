@@ -1,9 +1,19 @@
 #include "CreateWindow.h"
 
-Window::Window() = default;
-
-Window::~Window() {
-	SDL_Quit();
+void KeepWindowUp()
+{
+	SDL_Event e;
+	bool quit = false;
+	while (quit == false)
+	{
+		while (SDL_PollEvent(&e))
+		{
+			if (e.type == SDL_QUIT)
+			{
+				quit = true;
+			}
+		}
+	}
 }
 
 std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> Window::CreateWindow() {
@@ -19,14 +29,15 @@ std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> Window::CreateWindow() {
         return std::unique_ptr<SDL_Window, void(*)(SDL_Window*)>(nullptr, &SDL_DestroyWindow);
     }
 
-    screenSurface = SDL_GetWindowSurface(windowPtr.get());
+			SDL_UpdateWindowSurface(window);
 
     
 
 
 //    SDL_FillRect(screenSurface, nullptr, SDL_MapRGB(screenSurface->format, 0x00, 0x00, 0x00));
 
-    SDL_UpdateWindowSurface(windowPtr.get());
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 
-    return windowPtr;
+	return SUCCESS;
 }

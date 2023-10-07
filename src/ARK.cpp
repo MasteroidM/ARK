@@ -1,13 +1,15 @@
 #include "ARK.h"
 
-int main(int, char**) 
+int main(int argc, char* args[])
 {
-    Window window;
-    std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> sdlWindow = window.CreateWindow(); 
+	Status status = CreateWindow();
 
-    SDL_Event event;
-    bool quit = false;
+	if (status == SUCCESS)
+		std::cout << "Success" << std::endl;
+	else
+		std::cout << "Failure" << std::endl;
 
+<<<<<<< HEAD
     if ((IMG_Init(IMG_INIT_JPG) & IMG_INIT_JPG) != IMG_INIT_JPG) {
         std::cout << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError() << std::endl;
 
@@ -56,4 +58,7 @@ int main(int, char**)
     SDL_Quit();
 
     return 0;
+=======
+	return 0;
+>>>>>>> 7aa5f3e16a19364049e7815296ff9436aaa2500a
 }

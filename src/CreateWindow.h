@@ -1,22 +1,14 @@
 #pragma once
 
 #include <iostream>
-#include <memory>
 
 #include "SDL.h"
 #include "SDL_image.h"
 
-const uint16_t SCREEN_HEIGHT = 480;
-const uint16_t SCREEN_WIDTH = 640;
+constexpr uint16_t SCREEN_HEIGHT = 480;
+constexpr uint16_t SCREEN_WIDTH = 640;
 
-class Window {
-public:
-    Window();
-    ~Window();
+enum Status { SUCCESS, FAILURE };
 
-    std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> CreateWindow();
-
-private:
-    std::unique_ptr<SDL_Window, void(*)(SDL_Window*)> window{ nullptr, &SDL_DestroyWindow };
-    SDL_Surface* screenSurface{ nullptr };
-};
+Status CreateWindow();
+void KeepWindowUp();
