@@ -18,7 +18,7 @@
     <ClInclude Include="src\ARK.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\CreateWindow.h">
+    <ClInclude Include="src\Game.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -26,8 +26,16 @@
     <ClCompile Include="src\ARK.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\CreateWindow.cpp">
+    <ClCompile Include="src\Game.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="images\640.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

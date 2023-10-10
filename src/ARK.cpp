@@ -1,13 +1,10 @@
 #include "ARK.h"
 
-int main(int argc, char* args[])
+int main(int, char**)
 {
-	Status status = CreateWindow();
+    Game ARK;
 
-	if (status == SUCCESS)
-		std::cout << "Success" << std::endl;
-	else
-		std::cout << "Failure" << std::endl;
+    ARK.startGameLoop();
 
-	return 0;
+    return 0;
 }
