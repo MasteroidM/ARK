@@ -21,24 +21,37 @@ Game::~Game()
     if (m_event)
         delete m_event;
 
+    if (m_sound)
+        Mix_FreeMusic(m_sound);
+
+    if (m_socket)
+        SDLNet_UDP_Close(m_socket);
+
+    SDLNet_Quit();
+    Mix_CloseAudio();
     SDL_Quit();
 
 }
 
 void Game::startGameLoop()
 {
-    initVideo();
+    init();
+    playAudio();
+
+    Game::sendPacket("UDP Connection Established!");
+    Game::receivePacket();
+
     while (!quit)
     {
         update();
     }
 }
 
-void Game::initVideo()
+void Game::init()
 {
     m_event = new SDL_Event;
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         std::cout << "SDL initialization failed. SDL Error: " << SDL_GetError() << std::endl;
         exit(1);
     }
@@ -69,11 +82,23 @@ void Game::initVideo()
         exit(1);
     }
 
-
     m_texture = SDL_CreateTextureFromSurface(m_renderer, m_surface);
     if (m_texture == nullptr)
     {
         std::cout << "Unable to create texture from 640.jpg! SDL Error: " << SDL_GetError() << std::endl;
+    }
+
+    if (SDLNet_Init() == -1) {
+        std::cout << "SDLNet initialization failed: " << SDLNet_GetError() << std::endl;
+    }
+
+    m_socket = SDLNet_UDP_Open(PORT);
+    if (!m_socket) {
+        std::cout << "SDLNet_UDP_Open failed: " << SDLNet_GetError() << std::endl;
+    }
+
+    if (SDLNet_ResolveHost(&m_IPaddress, "127.0.0.1", PORT) == -1) {
+        std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
     }
 
 }
@@ -112,7 +137,7 @@ void Game::render()
     m_fpsCount++;
 
 
-    if ((showFrameRate == true) || (_DEBUG))
+    if ((showFrameRate == true))
     {
         getFrames();
     }
@@ -126,6 +151,7 @@ void Game::render()
 
 void Game::readInput()
 {
+    if (m_event->type == SDL_SCANCODE_P) playAudio();
     switch (m_event->type)
     {
     case SDL_QUIT:
@@ -157,8 +183,20 @@ void Game::readInput()
             std::cout << "Mouse Wheel Down" << std::endl;
         break;
 
+
     case SDL_KEYDOWN:
         std::cout << "Key pressed: " << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
+        switch (m_event->key.keysym.sym)
+        {
+            case SDLK_p:
+                if (Mix_PausedMusic()) Mix_ResumeMusic();
+                else Mix_PauseMusic();
+                break;
+            
+            case SDLK_o:
+                Mix_HaltMusic();
+                break;
+        }
         break;
 
     case SDL_KEYUP:
@@ -180,5 +218,58 @@ void Game::getFrames()
         m_fpsCount = 0;
         m_fpsTimer = SDL_GetTicks();
     }
+}
+
+void Game::playAudio()
+{
+    Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG | MIX_INIT_FLAC | MIX_INIT_MOD);
+    
+    if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096)) {
+        printf("Unable to open audio!\n");
+        SDL_Quit();
+        exit(1);
+    }
+
+    m_sound = Mix_LoadMUS("audio.flac");
+    std::cout << Mix_GetMusicVolume(m_sound) << std::endl;
+    if (m_sound == nullptr) SDL_ShowSimpleMessageBox(NULL, "", "Music is null", m_window);
+    Mix_PlayMusic(m_sound, -1);
+    if (!Mix_PlayingMusic()) SDL_ShowSimpleMessageBox(NULL, "", "No music playing", m_window);
+
+}
+
+void Game::sendPacket(const std::string& message) {
+
+    char buffer[BUFFER_SIZE];
+    strcpy_s(buffer, BUFFER_SIZE, message.c_str());
+
+    UDPpacket* packet = SDLNet_AllocPacket(BUFFER_SIZE);
+    packet->address.host = m_IPaddress.host;
+    packet->address.port = m_IPaddress.port;
+    packet->data = (Uint8*) (buffer);
+    packet->len = strlen(buffer) + 1;
+
+    if (SDLNet_UDP_Send(m_socket, -1, packet) == 0) {
+        std::cout << "SDLNet_UDP_Send failed: " << SDLNet_GetError() << std::endl;
+    }
+
+    SDLNet_FreePacket(packet);
+}
+
+void Game::receivePacket() {
+    char buffer[BUFFER_SIZE];
+
+    UDPpacket* packet = SDLNet_AllocPacket(BUFFER_SIZE);
+
+    if (SDLNet_UDP_Recv(m_socket, packet)) {
+        std::cout << "Received packet from " << SDLNet_ResolveIP(&packet->address) << ": " << packet->data << std::endl;
+
+        packet->address.port = packet->address.port;
+        if (SDLNet_UDP_Send(m_socket, -1, packet) == 0) {
+            std::cout << "SDLNet_UDP_Send failed: " << SDLNet_GetError() << std::endl;
+        }
+    }
+
+    SDLNet_FreePacket(packet);
 }
 
