@@ -1,7 +1,8 @@
 #include "Game.h"
 
-
 bool quit = false;
+
+std::string temp="null";
 Uint16 SenderPORT;
 Uint16 RecieversPORT;
 
@@ -45,7 +46,8 @@ void Game::startGameLoop()
     {
         update();
         //std::cout << "This data will be sent in this tick" << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
-        //Game::sendPacket(SDL_GetKeyName(m_event->key.keysym.sym));
+
+        Game::sendPacket(temp);        
         Game::receivePacket();
     }
 }
@@ -201,8 +203,8 @@ void Game::readInput()
 
 
     case SDL_KEYDOWN:
-        std::cout << "Key pressed: " << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
-        Game::sendPacket("Hello world");
+        temp = SDL_GetKeyName(m_event->key.keysym.sym);
+        std::cout << "Key pressed: " << temp << std::endl;
         switch (m_event->key.keysym.sym)
         {
         case SDLK_p:
@@ -217,10 +219,12 @@ void Game::readInput()
         break;
 
     case SDL_KEYUP:
-        std::cout << "Key released: " << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
+        temp = SDL_GetKeyName(m_event->key.keysym.sym);
+        std::cout << "Key released: " << temp  << std::endl;
         break;
 
     default:
+        temp = "null";
         break;
 
     }
@@ -280,13 +284,9 @@ void Game::receivePacket() {
 
     if (SDLNet_UDP_Recv(m_socket, packet)) {
         std::cout << "Received packet from " << SDLNet_ResolveIP(&packet->address) << ": " << packet->data << std::endl;
-
-        packet->address.port = packet->address.port;
-        if (SDLNet_UDP_Send(m_socket, -1, packet) == 0) {
-            std::cout << "SDLNet_UDP_Send failed: " << SDLNet_GetError() << std::endl;
-        }
     }
 
     SDLNet_FreePacket(packet);
 }
+
 
