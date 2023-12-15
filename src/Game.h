@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include<string>
 
 #include "SDL.h"
 #include "SDL_image.h"
@@ -20,7 +21,8 @@ public:
 	SDL_Event* m_event;
 	Mix_Music* m_sound;
 	UDPsocket m_socket;
-	IPaddress m_IPaddress;
+	IPaddress m_SenderIPaddress;
+	IPaddress m_RecieverIPaddress;
 
 
 	Uint64 m_frameStart = 0;
@@ -32,7 +34,9 @@ public:
 	bool showFrameRate = true;
 
 
-//public:
+
+
+	//public:
 	Game();
 	~Game();
 
@@ -50,7 +54,6 @@ public:
 constexpr Uint16 SCREEN_HEIGHT = 480;
 constexpr Uint16 SCREEN_WIDTH = 640;
 
-constexpr Uint16 PORT = 12345;
 constexpr Uint16 BUFFER_SIZE = 1024;
 
 //constexpr Uint16 frameRate = 60;

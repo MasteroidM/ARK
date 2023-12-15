@@ -2,6 +2,10 @@
 
 bool quit = false;
 
+std::string temp="null";
+Uint16 SenderPORT;
+Uint16 RecieversPORT;
+
 Game::Game() = default;
 
 Game::~Game()
@@ -38,18 +42,26 @@ void Game::startGameLoop()
     init();
     playAudio();
 
-    Game::sendPacket("UDP Connection Established!");
-    Game::receivePacket();
-
     while (!quit)
     {
         update();
+        //std::cout << "This data will be sent in this tick" << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
+
+        Game::sendPacket(temp);        
+        Game::receivePacket();
     }
 }
 
 void Game::init()
 {
     m_event = new SDL_Event;
+
+    //take senders and reciever ports as input
+    std::cout << "Enter a port number (This port is your port where you will recieve data.)" << std::endl;
+    std::cin >> SenderPORT;
+
+    std::cout << "Enter a port number (This port is recievers port where you will send data.)" << std::endl;
+    std::cin >> RecieversPORT;
 
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         std::cout << "SDL initialization failed. SDL Error: " << SDL_GetError() << std::endl;
@@ -60,6 +72,7 @@ void Game::init()
     {
         std::cout << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError() << std::endl;
     }
+
 
     m_window = SDL_CreateWindow("ARK", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
     if (m_window == nullptr) {
@@ -92,12 +105,17 @@ void Game::init()
         std::cout << "SDLNet initialization failed: " << SDLNet_GetError() << std::endl;
     }
 
-    m_socket = SDLNet_UDP_Open(PORT);
+    m_socket = SDLNet_UDP_Open(SenderPORT);
+
     if (!m_socket) {
         std::cout << "SDLNet_UDP_Open failed: " << SDLNet_GetError() << std::endl;
     }
 
-    if (SDLNet_ResolveHost(&m_IPaddress, "127.0.0.1", PORT) == -1) {
+    if (SDLNet_ResolveHost(&m_SenderIPaddress, "127.0.0.1", SenderPORT) == -1) {
+        std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
+    }
+
+    if (SDLNet_ResolveHost(&m_RecieverIPaddress, "127.0.0.1", RecieversPORT) == -1) {
         std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
     }
 
@@ -185,25 +203,28 @@ void Game::readInput()
 
 
     case SDL_KEYDOWN:
-        std::cout << "Key pressed: " << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
+        temp = SDL_GetKeyName(m_event->key.keysym.sym);
+        std::cout << "Key pressed: " << temp << std::endl;
         switch (m_event->key.keysym.sym)
         {
-            case SDLK_p:
-                if (Mix_PausedMusic()) Mix_ResumeMusic();
-                else Mix_PauseMusic();
-                break;
-            
-            case SDLK_o:
-                Mix_HaltMusic();
-                break;
+        case SDLK_p:
+            if (Mix_PausedMusic()) Mix_ResumeMusic();
+            else Mix_PauseMusic();
+            break;
+
+        case SDLK_o:
+            Mix_HaltMusic();
+            break;
         }
         break;
 
     case SDL_KEYUP:
-        std::cout << "Key released: " << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
+        temp = SDL_GetKeyName(m_event->key.keysym.sym);
+        std::cout << "Key released: " << temp  << std::endl;
         break;
 
     default:
+        temp = "null";
         break;
 
     }
@@ -211,7 +232,7 @@ void Game::readInput()
 
 void Game::getFrames()
 {
-    if (SDL_GetTicks() - m_fpsTimer >= 1000) 
+    if (SDL_GetTicks() - m_fpsTimer >= 1000)
     {
         m_avgFPS = m_fpsCount / ((SDL_GetTicks64() - m_fpsTimer) / 1000.0f);
         std::cout << "Current FPS: " << m_avgFPS << std::endl;
@@ -223,7 +244,7 @@ void Game::getFrames()
 void Game::playAudio()
 {
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG | MIX_INIT_FLAC | MIX_INIT_MOD);
-    
+
     if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096)) {
         printf("Unable to open audio!\n");
         SDL_Quit();
@@ -244,9 +265,9 @@ void Game::sendPacket(const std::string& message) {
     strcpy_s(buffer, BUFFER_SIZE, message.c_str());
 
     UDPpacket* packet = SDLNet_AllocPacket(BUFFER_SIZE);
-    packet->address.host = m_IPaddress.host;
-    packet->address.port = m_IPaddress.port;
-    packet->data = (Uint8*) (buffer);
+    packet->address.host = m_RecieverIPaddress.host;
+    packet->address.port = m_RecieverIPaddress.port;
+    packet->data = (Uint8*)(buffer);
     packet->len = strlen(buffer) + 1;
 
     if (SDLNet_UDP_Send(m_socket, -1, packet) == 0) {
@@ -263,13 +284,9 @@ void Game::receivePacket() {
 
     if (SDLNet_UDP_Recv(m_socket, packet)) {
         std::cout << "Received packet from " << SDLNet_ResolveIP(&packet->address) << ": " << packet->data << std::endl;
-
-        packet->address.port = packet->address.port;
-        if (SDLNet_UDP_Send(m_socket, -1, packet) == 0) {
-            std::cout << "SDLNet_UDP_Send failed: " << SDLNet_GetError() << std::endl;
-        }
     }
 
     SDLNet_FreePacket(packet);
 }
+
 
