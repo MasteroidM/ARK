@@ -111,11 +111,11 @@ void Game::init()
         std::cout << "SDLNet_UDP_Open failed: " << SDLNet_GetError() << std::endl;
     }
 
-    if (SDLNet_ResolveHost(&m_SenderIPaddress, "127.0.0.1", SenderPORT) == -1) {
+    if (SDLNet_ResolveHost(&m_SenderIPaddress, "192.168.43.199", SenderPORT) == -1) {
         std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
     }
 
-    if (SDLNet_ResolveHost(&m_RecieverIPaddress, "127.0.0.1", RecieversPORT) == -1) {
+    if (SDLNet_ResolveHost(&m_RecieverIPaddress, "192.168.43.169", RecieversPORT) == -1) {
         std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
     }
 
