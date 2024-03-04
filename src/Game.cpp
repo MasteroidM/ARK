@@ -1,54 +1,47 @@
 #include "Game.h"
 
 bool quit = false;
-
-std::string temp="null";
 Uint16 SenderPORT;
 Uint16 RecieversPORT;
 
-Game::Game() = default;
+Game::Game() :
+    m_window(nullptr), m_renderer(nullptr), m_surface(nullptr), m_texture(nullptr), m_event(nullptr),
+    m_sound(nullptr), m_socket(nullptr), m_frameStart(0), m_frameTime(0), m_frameCount(0),
+    m_avgFPS(0.0f), m_fpsTimer(0), m_fpsCount(0), showFrameRate(true), temp("null") {}
 
 Game::~Game()
 {
-    if (m_window)
-        SDL_DestroyWindow(m_window);
-
-    if (m_renderer)
-        SDL_DestroyRenderer(m_renderer);
-
-    if (m_surface)
-        SDL_FreeSurface(m_surface);
-
-    if (m_texture)
-        SDL_DestroyTexture(m_texture);
-
-    if (m_event)
+    if (m_event) {
         delete m_event;
+        m_event = nullptr;
+    }
 
-    if (m_sound)
-        Mix_FreeMusic(m_sound);
-
-    if (m_socket)
-        SDLNet_UDP_Close(m_socket);
-
-    SDLNet_Quit();
-    Mix_CloseAudio();
-    SDL_Quit();
-
+    cleanup();
 }
 
 void Game::startGameLoop()
 {
     init();
     playAudio();
+    SDL_Thread* sendThread = nullptr;
+    SDL_Thread* receiveThread = nullptr;
 
     while (!quit)
     {
         update();
-        //std::cout << "This data will be sent in this tick" << SDL_GetKeyName(m_event->key.keysym.sym) << std::endl;
+        
 
-        Game::sendPacket(temp);        
-        Game::receivePacket();
+        if (sendThread) {
+            SDL_WaitThread(sendThread, nullptr);
+            sendThread = nullptr;
+        }
+        if (receiveThread) {
+            SDL_WaitThread(receiveThread, nullptr);
+            receiveThread = nullptr;
+        }
+
+        StartSendThread();
+        StartReceiveThread();
     }
 }
 
@@ -56,37 +49,37 @@ void Game::init()
 {
     m_event = new SDL_Event;
 
-    //take senders and reciever ports as input
     std::cout << "Enter a port number (This port is your port where you will recieve data.)" << std::endl;
     std::cin >> SenderPORT;
 
     std::cout << "Enter a port number (This port is recievers port where you will send data.)" << std::endl;
     std::cin >> RecieversPORT;
 
+    // Initialize SDL
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
-        std::cout << "SDL initialization failed. SDL Error: " << SDL_GetError() << std::endl;
-        exit(1);
+        std::cerr << "SDL initialization failed. SDL Error: " << SDL_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
 
-    if (IMG_Init(IMG_INIT_JPG & IMG_INIT_JPG) != IMG_INIT_JPG)
-    {
-        std::cout << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError() << std::endl;
+    // Initialize SDL_image
+    int imgFlags = IMG_INIT_JPG | IMG_INIT_PNG;
+    if (!(IMG_Init(imgFlags) & imgFlags)) {
+        std::cerr << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
-
-
     m_window = SDL_CreateWindow("ARK", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
     if (m_window == nullptr) {
         std::cout << "Window creation failed. SDL Error: " << SDL_GetError() << std::endl;
         SDL_Quit();
         exit(1);
     }
-
+    // Load image
     m_surface = IMG_Load("images/640.jpg");
     if (m_surface == nullptr)
     {
-        std::cout << "Unable to load image 640.jpg! SDL_image Error: " << IMG_GetError() << std::endl;
+        std::cerr << "Unable to load image 640.jpg! SDL_image Error: " << IMG_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
-
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
     if (m_renderer == nullptr) {
         std::cout << "Renderer creation failed. SDL Error: " << SDL_GetError() << std::endl;
@@ -94,31 +87,63 @@ void Game::init()
         SDL_Quit();
         exit(1);
     }
-
     m_texture = SDL_CreateTextureFromSurface(m_renderer, m_surface);
     if (m_texture == nullptr)
     {
         std::cout << "Unable to create texture from 640.jpg! SDL Error: " << SDL_GetError() << std::endl;
     }
 
+    // Initialize SDL_mixer
+    if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096)) {
+        std::cerr << "Unable to open audio: " << Mix_GetError() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Load music
+    m_sound = Mix_LoadMUS("audio.flac");
+    if (m_sound == nullptr) {
+        std::cerr << "Unable to load music: " << Mix_GetError() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize SDL_net
     if (SDLNet_Init() == -1) {
-        std::cout << "SDLNet initialization failed: " << SDLNet_GetError() << std::endl;
+        std::cerr << "SDLNet initialization failed: " << SDLNet_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
 
+    // Open UDP socket
     m_socket = SDLNet_UDP_Open(SenderPORT);
-
     if (!m_socket) {
-        std::cout << "SDLNet_UDP_Open failed: " << SDLNet_GetError() << std::endl;
+        std::cerr << "SDLNet_UDP_Open failed: " << SDLNet_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
 
+    // Resolve IP addresses
     if (SDLNet_ResolveHost(&m_SenderIPaddress, "127.0.0.1", SenderPORT) == -1) {
-        std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
+        std::cerr << "SDLNet_ResolveHost failed for sender: " << SDLNet_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
 
     if (SDLNet_ResolveHost(&m_RecieverIPaddress, "127.0.0.1", RecieversPORT) == -1) {
-        std::cout << "SDLNet_ResolveHost failed: " << SDLNet_GetError() << std::endl;
+        std::cerr << "SDLNet_ResolveHost failed for receiver: " << SDLNet_GetError() << std::endl;
+        exit(EXIT_FAILURE);
     }
+}
 
+void Game::cleanup()
+{
+    // Cleanup SDL_net
+    SDLNet_Quit();
+
+    // Cleanup SDL_mixer
+    Mix_CloseAudio();
+
+    // Cleanup SDL_image
+    IMG_Quit();
+
+    // Cleanup SDL
+    SDL_Quit();
 }
 
 void Game::update()
@@ -131,29 +156,26 @@ void Game::update()
     }
 
     render();
-
 }
 
 void Game::render()
 {
-    //SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
-    //SDL_RenderClear(m_renderer);
-    //SDL_RenderPresent(m_renderer);
+    // Rendering code...
+    Uint64 frameStart = SDL_GetTicks64();
 
     SDL_RenderClear(m_renderer);
     SDL_RenderCopy(m_renderer, m_texture, nullptr, nullptr);
     SDL_RenderPresent(m_renderer);
 
-    m_frameTime = SDL_GetTicks64() - m_frameStart;
+    Uint64 frameTime = SDL_GetTicks64() - frameStart;
 
     const Uint64 targetFrameTime = 1000 / 60;
-    if (m_frameTime < targetFrameTime)
+    if (frameTime < targetFrameTime)
     {
-        SDL_Delay(targetFrameTime - m_frameTime);
+        SDL_Delay(targetFrameTime - frameTime);
     }
 
     m_fpsCount++;
-
 
     if ((showFrameRate == true))
     {
@@ -164,74 +186,11 @@ void Game::render()
         m_fpsCount = 0;
         m_fpsTimer = SDL_GetTicks();
     }
-
-}
-
-void Game::readInput()
-{
-    if (m_event->type == SDL_SCANCODE_P) playAudio();
-    switch (m_event->type)
-    {
-    case SDL_QUIT:
-        quit = true;
-        break;
-
-    case SDL_MOUSEBUTTONDOWN:
-        if (m_event->button.button == SDL_BUTTON_LEFT)
-            std::cout << "Mouse Pressed : Left Mouse Button (LMB)" << std::endl;
-        if (m_event->button.button == SDL_BUTTON_RIGHT)
-            std::cout << "Mouse Pressed : Right Mouse Button (RMB)" << std::endl;
-        if (m_event->button.button == SDL_BUTTON_MIDDLE)
-            std::cout << "Mouse Pressed : Middle Mouse Button (MMB)" << std::endl;
-        break;
-
-    case SDL_MOUSEBUTTONUP:
-        if (m_event->button.button == SDL_BUTTON_LEFT)
-            std::cout << "Mouse Released : Left Mouse Button (LMB)" << std::endl;
-        if (m_event->button.button == SDL_BUTTON_RIGHT)
-            std::cout << "Mouse Released : Right Mouse Button (RMB)" << std::endl;
-        if (m_event->button.button == SDL_BUTTON_MIDDLE)
-            std::cout << "Mouse Released : Middle Mouse Button (MMB)" << std::endl;
-        break;
-
-    case SDL_MOUSEWHEEL:
-        if (m_event->wheel.y > 0)
-            std::cout << "Mouse Wheel Up" << std::endl;
-        if (m_event->wheel.y < 0)
-            std::cout << "Mouse Wheel Down" << std::endl;
-        break;
-
-
-    case SDL_KEYDOWN:
-        temp = SDL_GetKeyName(m_event->key.keysym.sym);
-        std::cout << "Key pressed: " << temp << std::endl;
-        switch (m_event->key.keysym.sym)
-        {
-        case SDLK_p:
-            if (Mix_PausedMusic()) Mix_ResumeMusic();
-            else Mix_PauseMusic();
-            break;
-
-        case SDLK_o:
-            Mix_HaltMusic();
-            break;
-        }
-        break;
-
-    case SDL_KEYUP:
-        temp = SDL_GetKeyName(m_event->key.keysym.sym);
-        std::cout << "Key released: " << temp  << std::endl;
-        break;
-
-    default:
-        temp = "null";
-        break;
-
-    }
 }
 
 void Game::getFrames()
 {
+    // Frame rate calculation...
     if (SDL_GetTicks() - m_fpsTimer >= 1000)
     {
         m_avgFPS = m_fpsCount / ((SDL_GetTicks64() - m_fpsTimer) / 1000.0f);
@@ -241,26 +200,97 @@ void Game::getFrames()
     }
 }
 
+void Game::readInput()
+{
+    // Input handling code...
+    if (m_event->type == SDL_KEYDOWN)
+    {
+        temp = SDL_GetKeyName(m_event->key.keysym.sym);
+        std::cout << "Key pressed: " << temp << std::endl;
+        switch (m_event->key.keysym.sym)
+        {
+        case SDLK_p:
+            if (Mix_PausedMusic())
+                Mix_ResumeMusic();
+            else
+                Mix_PauseMusic();
+            break;
+
+        case SDLK_o:
+            Mix_HaltMusic();
+            break;
+        }
+    }
+    else if (m_event->type == SDL_KEYUP)
+    {
+        temp = SDL_GetKeyName(m_event->key.keysym.sym);
+        std::cout << "Key released: " << temp << std::endl;
+    }
+    else if (m_event->type == SDL_MOUSEBUTTONDOWN)
+    {
+        if (m_event->button.button == SDL_BUTTON_LEFT)
+            std::cout << "Mouse Pressed : Left Mouse Button (LMB)" << std::endl;
+        if (m_event->button.button == SDL_BUTTON_RIGHT)
+            std::cout << "Mouse Pressed : Right Mouse Button (RMB)" << std::endl;
+        if (m_event->button.button == SDL_BUTTON_MIDDLE)
+            std::cout << "Mouse Pressed : Middle Mouse Button (MMB)" << std::endl;
+    }
+    else if (m_event->type == SDL_MOUSEBUTTONUP)
+    {
+        if (m_event->button.button == SDL_BUTTON_LEFT)
+            std::cout << "Mouse Released : Left Mouse Button (LMB)" << std::endl;
+        if (m_event->button.button == SDL_BUTTON_RIGHT)
+            std::cout << "Mouse Released : Right Mouse Button (RMB)" << std::endl;
+        if (m_event->button.button == SDL_BUTTON_MIDDLE)
+            std::cout << "Mouse Released : Middle Mouse Button (MMB)" << std::endl;
+    }
+    else if (m_event->type == SDL_MOUSEWHEEL)
+    {
+        if (m_event->wheel.y > 0)
+            std::cout << "Mouse Wheel Up" << std::endl;
+        if (m_event->wheel.y < 0)
+            std::cout << "Mouse Wheel Down" << std::endl;
+    }
+    else if (m_event->type == SDL_QUIT)
+    {
+        quit = true;
+    }
+    else
+    {
+        temp = "null";
+    }
+}
+
 void Game::playAudio()
 {
-    Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG | MIX_INIT_FLAC | MIX_INIT_MOD);
+    // Audio playback code...
+    if (!Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG | MIX_INIT_FLAC | MIX_INIT_MOD)) {
+        printf("Unable to initialize SDL_mixer: %s\n", Mix_GetError());
+        // Handle initialization failure
+    }
 
-    if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096)) {
-        printf("Unable to open audio!\n");
-        SDL_Quit();
-        exit(1);
+    if (Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) < 0) {
+        printf("Unable to open audio: %s\n", Mix_GetError());
+        // Handle audio opening failure
     }
 
     m_sound = Mix_LoadMUS("audio.flac");
-    std::cout << Mix_GetMusicVolume(m_sound) << std::endl;
-    if (m_sound == nullptr) SDL_ShowSimpleMessageBox(NULL, "", "Music is null", m_window);
-    Mix_PlayMusic(m_sound, -1);
-    if (!Mix_PlayingMusic()) SDL_ShowSimpleMessageBox(NULL, "", "No music playing", m_window);
+    if (!m_sound) {
+        printf("Unable to load music: %s\n", Mix_GetError());
+        // Handle music loading failure
+    }
 
+    std::cout << Mix_GetMusicVolume(m_sound) << std::endl;
+    Mix_PlayMusic(m_sound, -1);
+    if (!Mix_PlayingMusic()) {
+        printf("No music playing: %s\n", Mix_GetError());
+        // Handle music playing failure
+    }
 }
 
-void Game::sendPacket(const std::string& message) {
-
+void Game::sendPacket(const std::string& message)
+{
+    // Sending packet code...
     char buffer[BUFFER_SIZE];
     strcpy_s(buffer, BUFFER_SIZE, message.c_str());
 
@@ -275,9 +305,12 @@ void Game::sendPacket(const std::string& message) {
     }
 
     SDLNet_FreePacket(packet);
+    memset(buffer, 0, BUFFER_SIZE);
 }
 
-void Game::receivePacket() {
+void Game::receivePacket()
+{
+    // Receiving packet code...
     char buffer[BUFFER_SIZE];
 
     UDPpacket* packet = SDLNet_AllocPacket(BUFFER_SIZE);
@@ -289,4 +322,58 @@ void Game::receivePacket() {
     SDLNet_FreePacket(packet);
 }
 
+void Game::StartSendThread()
+{
+    // Start sending thread...
+    // Allocate a ThreadData structure on the heap
+    ThreadData* data = new ThreadData;
+    data->gameInstance = this; // Assign the current Game instance
+    data->message = temp.c_str(); // Assign the message string
 
+    // Start the thread, passing the address of the ThreadData structure
+    SDL_Thread* thread = SDL_CreateThread(Game::SendThreadFunction, "ThreadName", data);
+    // Handle thread creation result...
+    if (thread == nullptr) {
+        // Handle thread creation failure
+        delete data; // Clean up the allocated ThreadData structure
+    }
+}
+
+void Game::StartReceiveThread()
+{
+    // Start receiving thread...
+    // Allocate a ThreadData structure on the heap
+    ThreadData* data = new ThreadData;
+    data->gameInstance = this; // Assign the current Game instance
+    data->message = nullptr; // No message to pass for receiving packets
+
+    // Start the thread, passing the address of the ThreadData structure
+    SDL_Thread* thread = SDL_CreateThread(Game::ReceiveThreadFunction, "ReceiveThreadName", data);
+    // Handle thread creation result...
+    if (thread == nullptr) {
+        // Handle thread creation failure
+        delete data; // Clean up the allocated ThreadData structure
+    }
+}
+
+int Game::SendThreadFunction(void* arg)
+{
+    // Sending thread function...
+    // Cast the void* to a struct that contains both the Game instance and the string data
+    ThreadData* data = static_cast<ThreadData*>(arg);
+    // Now you can use the Game instance and the message string inside your thread function
+    data->gameInstance->sendPacket(data->message);
+    // Cleanup the allocated ThreadData structure
+    delete data;
+    return 0;
+}
+
+int Game::ReceiveThreadFunction(void* arg)
+{
+    // Receiving thread function...
+    ThreadData* data = static_cast<ThreadData*>(arg);
+    data->gameInstance->receivePacket();
+    delete data;
+
+    return 0;
+}

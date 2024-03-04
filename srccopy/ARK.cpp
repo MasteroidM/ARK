@@ -1,6 +1,5 @@
 #include "ARK.h"
 
-
 int main(int, char**)
 {
     Game ARK;
